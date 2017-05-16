@@ -1,0 +1,18 @@
+{
+  "name": "openwhisk-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "main": "action.js",
+  "scripts": {
+    "start": "node ./bin/www",
+    "test": "./build.sh; ava"
+  },
+  "dependencies": {
+    "express": "~4.15.2",
+    "openwhisk": "^3.6.0",
+    "openwhisk-expressjs": "^1.0.0"
+  },
+  "devDependencies": {
+    "ava": "^0.19.1"
+  }
+}
