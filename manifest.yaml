@@ -1,0 +1,11 @@
+package:
+  name: openwhisk-gateway
+  version: 0.0.1
+  description: Simple action gateway for OpenWhisk
+  license: Apache-2.0
+  repositories:
+    - url: http://github.com/lionelvillard/openwhisk-gateway
+  actions:
+    gateway:
+      location: build/action.zip
+      runtime: nodejs:6

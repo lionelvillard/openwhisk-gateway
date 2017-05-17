@@ -20,50 +20,119 @@ const fs = require('fs');
 
 
 test.before(t => {
-    process.env.__OW_API_HOST = 'openwhisk.ng.bluemix.net';
-    process.env.__OW_API_KEY = '9840f914-cedf-4796-a249-433d4fc340e9:RH4TvE2Pm6U6DfTlsLBz6GPmKqPVOwjCpYF5KN5gp7d3189AojRV2Vj0YBJxmSrp';
+    if (!process.env.__OW_API_HOST || !process.env.__OW_API_KEY)
+        throw "Missing __OW_API_HOST and/or __OW_API_KEY in the environment"
 
     const action = fs.readFileSync('build/action.zip');
+    const fwaction = fs.readFileSync('actions/forward_action_name.js').toString();
+
+    const seqaction = {
+        exec: {
+            kind: 'sequence',
+            components: ['/_/routingtests/forward_action_name', '/_/routingtests/gateway']
+        }
+    };
 
     let ow = openwhisk();
+
+    // Create packages
     return ow.packages.create({
-        name: 'bluegreentests_latest',
+        name: 'routingtests_latest',
         overwrite: true
-    }).then(() => ow.packages.create({
-        name: 'bluegreentests_v1',
-        overwrite: true
-    })).then(() => ow.packages.create({
-        name: 'bluegreentests',
-        overwrite: true
-    })).then(() => ow.actions.create({
-        name: '/_/bluegreentests_latest/action1',
-        action: 'function main(args) { return { statusCode: 200, body: "hello" }; }',
-        overwrite: true
-    })).then(() => ow.actions.create({
-        name: '/_/bluegreentests_v1/action1',
-        action: 'function main(args) { return { statusCode: 200, body: "hello2" }; }',
-        overwrite: true
-    })).then(() => ow.actions.create({
-        name: '/_/bluegreentests/action1',
-        action,
-        overwrite: true
-    })).then(() => ow.actions.create({
-        name: '/_/bluegreentests/action_doesnotexist',
-        action,
-        overwrite: true
-    })).then(() => ow.actions.create({
-        name: '/_/bluegreentests/action2',
-        action,
-        params: {
-            bluegreen: {
-                routes: [{
-                    action: "/$ns/$package/$action",
-                    redirect: "/$ns/$package_v1/action1"
-                }]
-            }
-        },
-        overwrite: true
-    }));
+    })
+        .then(() => ow.packages.create({
+            name: 'routingtests_v1',
+            overwrite: true
+        }))
+        .then(() => ow.packages.create({
+            name: 'routingtests',
+            overwrite: true
+        }))
+
+        // create shared gateway actions
+
+        .then(() => ow.actions.create({
+            name: 'routingtests/gateway',
+            action,
+            params: {
+                gateway: {
+                    routes: [
+                        {
+                            match_name: "/$ns/$package/action2",
+                            target: "/$ns/$package_v1/action2"
+                        },
+                        {
+                            match_name: "/$ns/$package/$action",
+                            target: "/$ns/$package_latest/$action"
+                        }]
+                }
+            },
+            overwrite: true
+        }))
+
+        // Create real actions
+
+        .then(() => ow.actions.create({
+            name: 'routingtests_latest/action1',
+            action: 'function main(args) { return { statusCode: 200, body: "latest hello" }; }',
+            overwrite: true
+        }))
+        .then(() => ow.actions.create({
+            name: 'routingtests_v1/action2',
+            action: 'function main(args) { return { statusCode: 200, body: "hello from action2" }; }',
+            overwrite: true
+
+        }))
+
+        // Connect exposed action to gateway
+
+        .then(() => ow.actions.create({
+            name: 'routingtests/action_doesnotexist_fwd',
+            action: fwaction,
+            overwrite: true
+        }))
+        .then(() => ow.actions.create({
+            name: 'routingtests/action_doesnotexist',
+            action: {
+                exec: {
+                    kind: 'sequence',
+                    components: ['/_/routingtests/action_doesnotexist_fwd', '/_/routingtests/gateway']
+                }
+            },
+            overwrite: true
+        }))
+
+        .then(() => ow.actions.create({
+            name: 'routingtests/action1_fwd',
+            action: fwaction,
+            overwrite: true
+        }))
+        .then(() => ow.actions.create({
+            name: 'routingtests/action1',
+            action: {
+                exec: {
+                    kind: 'sequence',
+                    components: ['/_/routingtests/action1_fwd', '/_/routingtests/gateway']
+                }
+            },
+            overwrite: true
+        }))
+
+        .then(() => ow.actions.create({
+            name: 'routingtests/action2_fwd',
+            action: fwaction,
+            overwrite: true
+        }))
+        .then(() => ow.actions.create({
+            name: 'routingtests/action2',
+            action: {
+                exec: {
+                    kind: 'sequence',
+                    components: ['/_/routingtests/action2_fwd', '/_/routingtests/gateway']
+                }
+            },
+            overwrite: true
+        }));
 });
 
 test.after.always(t => {
@@ -76,7 +145,7 @@ test('should call non-existent latest action', t => {
 
     let ow = openwhisk();
     return ow.actions.invoke({
-        actionName: '/_/bluegreentests/action_doesnotexist',
+        actionName: '/_/routingtests/action_doesnotexist',
         params: {
             __ow_method: 'get',
             __ow_path: '/'
@@ -93,7 +162,7 @@ test('should call latest action', t => {
 
     let ow = openwhisk();
     return ow.actions.invoke({
-        actionName: '/_/bluegreentests/action1',
+        actionName: '/_/routingtests/action1',
         params: {
             __ow_method: 'get',
             __ow_path: '/'
@@ -103,7 +172,7 @@ test('should call latest action', t => {
         result = result.response.result;
 
         t.is(result.statusCode, 200);
-        t.is(result.body, 'hello');
+        t.is(result.body, 'latest hello');
     });
 
 });
@@ -113,7 +182,7 @@ test('should call v1 action', t => {
 
     let ow = openwhisk();
     return ow.actions.invoke({
-        actionName: '/_/bluegreentests/action2',
+        actionName: '/_/routingtests/action2',
         params: {
             __ow_method: 'get',
             __ow_path: '/'
@@ -123,7 +192,7 @@ test('should call v1 action', t => {
         result = result.response.result;
 
         t.is(result.statusCode, 200);
-        t.is(result.body, 'hello2');
+        t.is(result.body, 'hello from action2');
     });
 
 });

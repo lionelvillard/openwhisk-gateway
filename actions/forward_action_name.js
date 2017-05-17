@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-const express = require('express');
-const routing = require('./lib/routing').middleware;
-const app = express();
 
-app.use(routing);
+function main(args) {
+    let actionName = process.env.__OW_ACTION_NAME;
+    let realActionName = actionName.substr(0, actionName.length - 4);
 
-module.exports = app;
+    console.log(realActionName);
+    args.gateway_action_name = realActionName;
+    return args;
+}

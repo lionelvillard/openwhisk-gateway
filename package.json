@@ -10,7 +10,7 @@
   "dependencies": {
     "express": "~4.15.2",
     "openwhisk": "^3.6.0",
-    "openwhisk-expressjs": "^1.0.0"
+    "openwhisk-expressjs": "^1.1.0"
   },
   "devDependencies": {
     "ava": "^0.19.1"
